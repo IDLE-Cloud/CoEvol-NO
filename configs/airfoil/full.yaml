@@ -1,0 +1,18 @@
+model:
+  name: CoEvolNO
+  coord_dim: 7
+  in_channels: 0
+  depth: 8
+  dim_lat: 256
+  dim_tok: 256
+  num_latents: 32
+  num_heads: 8
+  mlp_ratio: 1.0
+  drop_path_rate: 0.1
+
+training:
+  lr: 0.001
+  epochs: 500
+  batch_size: 4
+  subsampling: 5000
+  val_iter: 10

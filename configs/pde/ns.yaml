@@ -1,0 +1,27 @@
+model:
+  name: CoEvolNO
+  variant: s_exact
+  depth: 8
+  dim_lat: 128
+  dim_tok: 128
+  num_latents: 128
+  num_heads: 8
+  mlp_ratio: 1.0
+  drop_path_rate: 0.1
+  final_norm: false
+  use_wrapper: true
+
+training:
+  lr: 0.001
+  epochs: 500
+  batch_size: 8
+  scheduler: OneCycleLR
+  weight_decay: 1e-5
+  noise_std: 0.0
+
+data:
+  task: ns
+  ntrain: 1000
+  ntest: 200
+  downsample: 1
+  seed: 0

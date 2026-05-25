@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+*.whl
+results/
+checkpoints/
+output_pdfs*/
+data/
+*.pt
+*.pth
+*.log
+.sii/
+tmux-*.log
+.DS_Store
