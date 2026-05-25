@@ -112,13 +112,14 @@ model = OperatorNet(branch=branch, num_basis=128, resolution=64)
 
 ## 解析梯度
 
-CoEvol-NO 提供解析（analytical）版本的 PC 梯度计算，通过显式推导注意力反向传播公式避免 `torch.autograd` 的图构建开销。
+CoEvol-NO 提供解析（analytical）版本的 PC 梯度计算，通过显式推导反向传播公式避免 `torch.autograd.grad(create_graph=True)` 的二阶图构建开销。
+
+### S/X 解析梯度
 
 ```python
 from coevol_no.analytical import (
     compute_s_gradient_analytical,
     compute_x_gradient_analytical,
-    compute_ffn_gradient_analytical,
 )
 
 # 替代 attn._compute_s_gradient() 的解析版本
@@ -128,26 +129,45 @@ grad_S, S_pred = compute_s_gradient_analytical(attn, x_lat, x_tok)
 grad_X, X_pred = compute_x_gradient_analytical(attn, x_lat, x_tok, delta_S)
 ```
 
+### PCFFN：Predictor-Corrector FFN
+
+标准 FFN 的残差连接可替换为 PC 更新。通过 `use_pc_ffn=True` 启用，默认使用解析梯度（`analytical=True`）。
+
+```python
+from coevol_no import CoEvolNO
+
+# 启用 PCFFN（默认使用解析梯度）
+model = CoEvolNO(
+    img_size=(64, 64), in_channels=1, depth=8,
+    use_pc_ffn=True,              # 启用 PCFFN
+    pc_ffn_loss_type='dot product', # PC 损失类型
+    pc_ffn_momentum_beta=0.9,     # 动量系数
+    pc_ffn_analytical=True,       # 使用解析梯度（默认）
+)
+
+# 也可单独使用 PCFFN
+from coevol_no import PCFFN
+pcffn = PCFFN(dim=128, hidden_dim=128, analytical=True)
+x_out, momentum = pcffn(x, momentum)
+```
+
 ### 等价性验证
 
-解析版本与 autograd 版本在 float32 精度下完全等价（误差 < 1e-6）：
-
 ```bash
-python test_analytical.py
+python test_analytical.py   # S/X 梯度等价性（17 项全通过）
+python test_pcffn.py        # PCFFN 等价性（全部通过）
 ```
 
 ### 速度基准
 
-在 CPU 上（B=2, M=64, N=1024, C=128）的测试结果：
+CPU 测试结果（B=4, N=1024, C=128）：
 
 | 操作 | Autograd | 解析版本 | 加速比 |
 |------|----------|----------|--------|
 | S 梯度（精确） | 155ms | 51ms | **3.0x** |
 | X 梯度（精确） | 228ms | 89ms | **2.6x** |
+| PCFFN（精确） | 252ms | 174ms | **1.5x** |
 | X 梯度（一阶近似） | 12ms | 13ms | ~1.0x |
-| FFN 梯度 | 148ms | 158ms | ~1.0x |
-
-核心的精确 PC 梯度计算（S 和 X 的精确更新）获得约 **3 倍加速**，因为避免了 `autograd.grad(create_graph=True)` 的开销。一阶近似和 FFN 不使用 autograd 二次求导，因此无显著差异。
 
 ```bash
 python benchmark_analytical.py
@@ -160,7 +180,7 @@ CoEvol-NO/
 ├── coevol_no/              # 核心库
 │   ├── models.py           # CoEvolNO, CoEvolNOLatent, CoEvolNOSequence
 │   ├── attention.py        # StateAttention, DualExactStateAttention（核心 PC 模块）
-│   ├── blocks.py           # DualExactBlock, StatefulBlock, LatentBlock, SequenceBlock
+│   ├── blocks.py           # DualExactBlock, PCFFN, LatentBlock, SequenceBlock
 │   ├── layers.py           # LayerScale, Newton-Schulz 正交化
 │   ├── analytical.py       # 解析梯度（S/X/FFN 的显式反向公式）
 │   └── wrapper.py          # OperatorNet（Branch 封装）

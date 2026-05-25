@@ -112,13 +112,14 @@ model = OperatorNet(branch=branch, num_basis=128, resolution=64)
 
 ## Analytical Gradients
 
-CoEvol-NO provides analytical (closed-form) PC gradient computations that replace `torch.autograd` by explicitly deriving the attention backward pass, avoiding graph construction overhead.
+CoEvol-NO provides analytical (closed-form) PC gradient computations that replace `torch.autograd.grad(create_graph=True)` by explicitly deriving backward pass formulas, avoiding second-order graph construction overhead.
+
+### S/X Analytical Gradients
 
 ```python
 from coevol_no.analytical import (
     compute_s_gradient_analytical,
     compute_x_gradient_analytical,
-    compute_ffn_gradient_analytical,
 )
 
 # Drop-in replacement for attn._compute_s_gradient()
@@ -128,26 +129,45 @@ grad_S, S_pred = compute_s_gradient_analytical(attn, x_lat, x_tok)
 grad_X, X_pred = compute_x_gradient_analytical(attn, x_lat, x_tok, delta_S)
 ```
 
+### PCFFN: Predictor-Corrector FFN
+
+The standard residual FFN can be replaced with a PC update. Enable via `use_pc_ffn=True`; analytical gradient is used by default.
+
+```python
+from coevol_no import CoEvolNO
+
+# Enable PCFFN (analytical gradient by default)
+model = CoEvolNO(
+    img_size=(64, 64), in_channels=1, depth=8,
+    use_pc_ffn=True,              # enable PCFFN
+    pc_ffn_loss_type='dot product',
+    pc_ffn_momentum_beta=0.9,
+    pc_ffn_analytical=True,       # analytical gradient (default)
+)
+
+# Standalone PCFFN usage
+from coevol_no import PCFFN
+pcffn = PCFFN(dim=128, hidden_dim=128, analytical=True)
+x_out, momentum = pcffn(x, momentum)
+```
+
 ### Equivalence Verification
 
-The analytical version is numerically equivalent to autograd at float32 precision (error < 1e-6):
-
 ```bash
-python test_analytical.py
+python test_analytical.py   # S/X gradient equivalence (17 tests, all pass)
+python test_pcffn.py        # PCFFN equivalence (all pass)
 ```
 
 ### Speed Benchmark
 
-CPU results (B=2, M=64, N=1024, C=128):
+CPU results (B=4, N=1024, C=128):
 
 | Operation | Autograd | Analytical | Speedup |
 |-----------|----------|------------|---------|
 | S gradient (exact) | 155ms | 51ms | **3.0x** |
 | X gradient (exact) | 228ms | 89ms | **2.6x** |
+| PCFFN (exact) | 252ms | 174ms | **1.5x** |
 | X gradient (first-order) | 12ms | 13ms | ~1.0x |
-| FFN gradient | 148ms | 158ms | ~1.0x |
-
-The core exact PC gradient computations (S and X exact updates) achieve ~**3x speedup** by avoiding `autograd.grad(create_graph=True)` overhead. First-order and FFN operations show no significant difference as they don't use second-order autograd.
 
 ```bash
 python benchmark_analytical.py
@@ -160,7 +180,7 @@ CoEvol-NO/
 ├── coevol_no/              # Core library
 │   ├── models.py           # CoEvolNO, CoEvolNOLatent, CoEvolNOSequence
 │   ├── attention.py        # DualExactStateAttention (core PC module)
-│   ├── blocks.py           # DualExactBlock, LatentBlock, SequenceBlock
+│   ├── blocks.py           # DualExactBlock, PCFFN, LatentBlock, SequenceBlock
 │   ├── layers.py           # LayerScale, Newton-Schulz orthogonalization
 │   ├── analytical.py       # Analytical gradients (explicit backward for S/X/FFN)
 │   └── wrapper.py          # OperatorNet (Branch wrapper)
