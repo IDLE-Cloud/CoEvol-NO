@@ -148,7 +148,7 @@ def compute_x_gradient_analytical(attn, x_lat, x_tok, delta_S):
 
 
 # ===========================================================================
-# FFN gradient helpers
+# FFN gradient helpers (used by PCFFN in blocks.py)
 # ===========================================================================
 
 def _gelu_derivative(x):
@@ -186,39 +186,3 @@ def _layernorm_backward(grad_y, x, ln_module):
         - grad_x_hat.mean(dim=-1, keepdim=True)
         - x_hat * (grad_x_hat * x_hat).mean(dim=-1, keepdim=True)
     )
-
-
-def compute_ffn_gradient_analytical(block, x_tok, grad_output):
-    """Analytical VJP through the FFN sub-block.
-
-    Computes the VJP of ``y = x + LayerScale(MLP(LayerNorm(x)))``
-    (eval mode, no DropPath).
-
-    Args:
-        block: ``DualExactBlock`` in eval mode.
-        x_tok: Input tensor, shape ``(B, N, C_tok)``.
-        grad_output: Upstream gradient dL/dy, shape ``(B, N, C_tok)``.
-
-    Returns:
-        dL/dx, shape ``(B, N, C_tok)``.
-    """
-    # Forward: save intermediates
-    x_norm = block.norm_tok2(x_tok)
-    h = block.mlp_tok.fc1(x_norm)
-    a = F.gelu(h)
-    mlp_out = block.mlp_tok.fc2(a)
-
-    # Backward chain
-    # LayerScale backward: dL/d(mlp_out) = eta * grad_output
-    grad_mlp = block.ls_tok2.eta * grad_output
-    # fc2 backward
-    grad_a = grad_mlp @ block.mlp_tok.fc2.weight
-    # GELU backward
-    grad_h = grad_a * _gelu_derivative(h)
-    # fc1 backward
-    grad_norm = grad_h @ block.mlp_tok.fc1.weight
-    # LayerNorm backward
-    grad_x_ln = _layernorm_backward(grad_norm, x_tok, block.norm_tok2)
-
-    # Skip connection + through-FFN
-    return grad_output + grad_x_ln

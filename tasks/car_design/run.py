@@ -124,6 +124,10 @@ def main():
         num_heads=model_cfg.get('num_heads', 8),
         mlp_ratio=model_cfg.get('mlp_ratio', 1.0),
         drop_path_rate=model_cfg.get('drop_path_rate', 0.1),
+        use_pc_ffn=model_cfg.get('use_pc_ffn', False),
+        pc_ffn_loss_type=model_cfg.get('pc_ffn_loss_type', 'dot product'),
+        pc_ffn_momentum_beta=model_cfg.get('pc_ffn_momentum_beta', 0.9),
+        pc_ffn_analytical=model_cfg.get('pc_ffn_analytical', True),
     )
     model = CarModel(backbone, out_dim=4).to(device)
 

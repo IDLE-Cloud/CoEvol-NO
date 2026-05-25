@@ -179,7 +179,7 @@ python benchmark_analytical.py
 CoEvol-NO/
 ├── coevol_no/              # 核心库
 │   ├── models.py           # CoEvolNO, CoEvolNOLatent, CoEvolNOSequence
-│   ├── attention.py        # StateAttention, DualExactStateAttention（核心 PC 模块）
+│   ├── attention.py        # DualExactStateAttention（核心 PC 模块）
 │   ├── blocks.py           # DualExactBlock, PCFFN, LatentBlock, SequenceBlock
 │   ├── layers.py           # LayerScale, Newton-Schulz 正交化
 │   ├── analytical.py       # 解析梯度（S/X/FFN 的显式反向公式）

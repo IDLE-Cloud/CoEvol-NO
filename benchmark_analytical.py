@@ -6,14 +6,12 @@ Run: python benchmark_analytical.py
 import time
 import numpy as np
 import torch
-import torch.nn.functional as F
 
 from coevol_no.attention import DualExactStateAttention
-from coevol_no.blocks import DualExactBlock
+from coevol_no.blocks import DualExactBlock, PCFFN
 from coevol_no.analytical import (
     compute_s_gradient_analytical,
     compute_x_gradient_analytical,
-    compute_ffn_gradient_analytical,
 )
 
 
@@ -72,13 +70,14 @@ if __name__ == '__main__':
         print(f"{label}: B={B}, M={M}, N={N}, C={C}, H={H}")
         print(f"{'='*80}")
 
+        xl = torch.randn(B, M, C, device=device)
+        xt = torch.randn(B, N, C, device=device)
+
         # S gradient (exact, dot product)
         attn_s = DualExactStateAttention(
             dim_lat=C, dim_tok=C, num_heads=H,
             s_loss_type='dot product', s_approximate=False,
         ).to(device).eval()
-        xl = torch.randn(B, M, C, device=device)
-        xt = torch.randn(B, N, C, device=device)
 
         ma, sa = bench(lambda: attn_s._compute_s_gradient(xl, xt))
         mb, sb = bench(lambda: compute_s_gradient_analytical(attn_s, xl, xt))
@@ -108,23 +107,13 @@ if __name__ == '__main__':
         mb, sb = bench(lambda: compute_x_gradient_analytical(attn_xfo, xl, xt, dS))
         row("X gradient (first-order)", ma, sa, mb, sb)
 
-        # FFN gradient
-        block = DualExactBlock(
-            dim_lat=C, dim_tok=C, num_heads=H, mlp_ratio=1.0, drop_path=0.
-        ).to(device).eval()
+        # PCFFN benchmark
+        pcffn_auto = PCFFN(dim=C, hidden_dim=C, analytical=False).to(device).eval()
+        pcffn_anal = PCFFN(dim=C, hidden_dim=C, analytical=True).to(device).eval()
+        pcffn_anal.load_state_dict(pcffn_auto.state_dict())
 
-        def autograd_ffn():
-            x = torch.randn(B, N, C, device=device, requires_grad=True)
-            xn = block.norm_tok2(x)
-            o = block.mlp_tok(block.mlp_tok.act(block.mlp_tok.fc1(xn)))
-            # simplified: norm -> fc1 -> gelu -> fc2
-            xn2 = block.norm_tok2(x)
-            y = x + block.ls_tok2(block.mlp_tok(xn2))
-            y.sum().backward()
-
-        def anal_ffn():
-            compute_ffn_gradient_analytical(block, torch.randn(B, N, C, device=device), torch.ones(B, N, C, device=device))
-
-        ma, sa = bench(autograd_ffn)
-        mb, sb = bench(anal_ffn)
-        row("FFN gradient", ma, sa, mb, sb)
+        ma, sa = bench(lambda: pcffn_auto(xt.clone(), None))
+        mb, sb = bench(lambda: pcffn_anal(xt.clone(), None))
+        mema = peak_mb(lambda: pcffn_auto(xt.clone(), None))
+        memb = peak_mb(lambda: pcffn_anal(xt.clone(), None))
+        row("PCFFN (exact)", ma, sa, mb, sb, mema, memb)

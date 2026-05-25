@@ -29,34 +29,33 @@ def build_model(cfg, data_info):
     variant = cfg.get('model', {}).get('variant', None)
     model_cfg = cfg.get('model', {})
 
+    common_kwargs = {
+        'img_size': (data_info.get('resolution', 64), data_info.get('resolution', 64)),
+        'in_channels': data_info.get('in_channels', 1),
+        'coord_dim': data_info.get('coord_dim', 2),
+        'depth': model_cfg.get('depth', 8),
+        'dim_lat': model_cfg.get('dim_lat', 128),
+        'dim_tok': model_cfg.get('dim_tok', 128),
+        'num_latents': model_cfg.get('num_latents', 128),
+        'num_heads': model_cfg.get('num_heads', 8),
+        'mlp_ratio': model_cfg.get('mlp_ratio', 1.0),
+        'drop_path_rate': model_cfg.get('drop_path_rate', 0.1),
+        'use_pc_ffn': model_cfg.get('use_pc_ffn', False),
+        'pc_ffn_loss_type': model_cfg.get('pc_ffn_loss_type', 'dot product'),
+        'pc_ffn_momentum_beta': model_cfg.get('pc_ffn_momentum_beta', 0.9),
+        'pc_ffn_analytical': model_cfg.get('pc_ffn_analytical', True),
+    }
+
     if model_name == 'CoEvolNO' and variant:
         from coevol_no.models import CoEvolNOVariant
-        branch = CoEvolNOVariant.create(variant, **{
-            'img_size': (data_info.get('resolution', 64), data_info.get('resolution', 64)),
-            'in_channels': data_info.get('in_channels', 1),
-            'coord_dim': data_info.get('coord_dim', 2),
-            'depth': model_cfg.get('depth', 8),
-            'dim_lat': model_cfg.get('dim_lat', 128),
-            'dim_tok': model_cfg.get('dim_tok', 128),
-            'num_latents': model_cfg.get('num_latents', 128),
-            'num_heads': model_cfg.get('num_heads', 8),
-            'mlp_ratio': model_cfg.get('mlp_ratio', 1.0),
-            'drop_path_rate': model_cfg.get('drop_path_rate', 0.1),
-        })
+        branch = CoEvolNOVariant.create(variant, **common_kwargs)
     else:
         ModelClass = MODEL_REGISTRY[model_name]
-        branch = ModelClass(
-            img_size=(data_info.get('resolution', 64), data_info.get('resolution', 64)),
-            in_channels=data_info.get('in_channels', 1),
-            coord_dim=data_info.get('coord_dim', 2),
-            depth=model_cfg.get('depth', 8),
-            dim_lat=model_cfg.get('dim_lat', 128),
-            dim_tok=model_cfg.get('dim_tok', 128),
-            num_latents=model_cfg.get('num_latents', 128),
-            num_heads=model_cfg.get('num_heads', 8),
-            mlp_ratio=model_cfg.get('mlp_ratio', 1.0),
-            drop_path_rate=model_cfg.get('drop_path_rate', 0.1),
-        )
+        common_kwargs.pop('use_pc_ffn', None)
+        common_kwargs.pop('pc_ffn_loss_type', None)
+        common_kwargs.pop('pc_ffn_momentum_beta', None)
+        common_kwargs.pop('pc_ffn_analytical', None)
+        branch = ModelClass(**common_kwargs)
 
     use_wrapper = model_cfg.get('use_wrapper', True)
     if use_wrapper:

@@ -8,11 +8,10 @@ import torch
 import torch.nn.functional as F
 
 from coevol_no.attention import DualExactStateAttention
-from coevol_no.blocks import DualExactBlock
+from coevol_no.blocks import DualExactBlock, PCFFN
 from coevol_no.analytical import (
     compute_s_gradient_analytical,
     compute_x_gradient_analytical,
-    compute_ffn_gradient_analytical,
 )
 
 ATOL = 1e-4
@@ -172,78 +171,46 @@ def test_x_gradient_asymmetric_dims():
 
 
 # ===========================================================================
-# FFN gradient tests
+# PCFFN tests (analytical vs autograd)
 # ===========================================================================
 
-def test_ffn_gradient():
-    block = DualExactBlock(dim_lat=128, dim_tok=128, num_heads=8, mlp_ratio=2.0, drop_path=0.)
-    block.eval()
-
-    x_tok = torch.randn(2, 64, 128, requires_grad=True)
-
-    # Forward through FFN sub-block
-    x_norm = block.norm_tok2(x_tok)
-    h = block.mlp_tok.fc1(x_norm)
-    a = F.gelu(h)
-    mlp_out = block.mlp_tok.fc2(a)
-    scaled = block.ls_tok2(mlp_out)
-    y = x_tok + scaled
-
-    # Random upstream gradient
-    g = torch.randn_like(y)
-    loss = (y * g).sum()
-    loss.backward()
-    grad_auto = x_tok.grad.clone()
-
-    # Analytical
-    grad_anal = compute_ffn_gradient_analytical(block, x_tok.detach(), g)
-
-    check("FFN gradient", grad_auto, grad_anal)
+def test_pcffn_dot_product():
+    torch.manual_seed(0)
+    auto = PCFFN(dim=128, hidden_dim=128, loss_type='dot product', analytical=False)
+    torch.manual_seed(0)
+    anal = PCFFN(dim=128, hidden_dim=128, loss_type='dot product', analytical=True)
+    anal.load_state_dict(auto.state_dict())
+    auto.eval(); anal.eval()
+    x = torch.randn(2, 64, 128)
+    out_a, _ = auto(x.clone(), None)
+    out_b, _ = anal(x.clone(), None)
+    check("PCFFN (dot product)", out_a, out_b)
 
 
-def test_ffn_gradient_mlp_ratio_1():
-    block = DualExactBlock(dim_lat=128, dim_tok=128, num_heads=8, mlp_ratio=1.0, drop_path=0.)
-    block.eval()
-
-    x_tok = torch.randn(2, 64, 128, requires_grad=True)
-    x_norm = block.norm_tok2(x_tok)
-    h = block.mlp_tok.fc1(x_norm)
-    a = F.gelu(h)
-    mlp_out = block.mlp_tok.fc2(a)
-    scaled = block.ls_tok2(mlp_out)
-    y = x_tok + scaled
-
-    g = torch.randn_like(y)
-    loss = (y * g).sum()
-    loss.backward()
-    grad_auto = x_tok.grad.clone()
-
-    grad_anal = compute_ffn_gradient_analytical(block, x_tok.detach(), g)
-
-    check("FFN gradient (mlp_ratio=1)", grad_auto, grad_anal)
+def test_pcffn_l2():
+    torch.manual_seed(0)
+    auto = PCFFN(dim=128, hidden_dim=128, loss_type='l2', analytical=False)
+    torch.manual_seed(0)
+    anal = PCFFN(dim=128, hidden_dim=128, loss_type='l2', analytical=True)
+    anal.load_state_dict(auto.state_dict())
+    auto.eval(); anal.eval()
+    x = torch.randn(2, 64, 128)
+    out_a, _ = auto(x.clone(), None)
+    out_b, _ = anal(x.clone(), None)
+    check("PCFFN (L2)", out_a, out_b)
 
 
-def test_ffn_gradient_large():
-    """Test with larger dimensions similar to real models."""
-    block = DualExactBlock(dim_lat=256, dim_tok=256, num_heads=8, mlp_ratio=1.0, drop_path=0.)
-    block.eval()
-
-    x_tok = torch.randn(2, 256, 256, requires_grad=True)
-    x_norm = block.norm_tok2(x_tok)
-    h = block.mlp_tok.fc1(x_norm)
-    a = F.gelu(h)
-    mlp_out = block.mlp_tok.fc2(a)
-    scaled = block.ls_tok2(mlp_out)
-    y = x_tok + scaled
-
-    g = torch.randn_like(y)
-    loss = (y * g).sum()
-    loss.backward()
-    grad_auto = x_tok.grad.clone()
-
-    grad_anal = compute_ffn_gradient_analytical(block, x_tok.detach(), g)
-
-    check("FFN gradient (large)", grad_auto, grad_anal)
+def test_pcffn_large():
+    torch.manual_seed(0)
+    auto = PCFFN(dim=256, hidden_dim=256, loss_type='dot product', analytical=False)
+    torch.manual_seed(0)
+    anal = PCFFN(dim=256, hidden_dim=256, loss_type='dot product', analytical=True)
+    anal.load_state_dict(auto.state_dict())
+    auto.eval(); anal.eval()
+    x = torch.randn(2, 256, 256)
+    out_a, _ = auto(x.clone(), None)
+    out_b, _ = anal(x.clone(), None)
+    check("PCFFN (large)", out_a, out_b)
 
 
 # ===========================================================================
@@ -307,10 +274,10 @@ if __name__ == '__main__':
     test_x_gradient_first_order()
     test_x_gradient_asymmetric_dims()
 
-    print("\nFFN gradient tests:")
-    test_ffn_gradient()
-    test_ffn_gradient_mlp_ratio_1()
-    test_ffn_gradient_large()
+    print("\nPCFFN tests:")
+    test_pcffn_dot_product()
+    test_pcffn_l2()
+    test_pcffn_large()
 
     print("\nEnd-to-end block test:")
     test_full_block_consistency()
