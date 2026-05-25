@@ -1,5 +1,7 @@
 # CoEvol-NO: 基于预测-校正机制的多演算神经算子
 
+**[English](README_EN.md)** | 中文
+
 **CoEvol-NO** (ICML 2026) 官方实现。
 
 ## 概述
