@@ -262,7 +262,7 @@ def test_full_block_consistency():
     x_tok = torch.randn(2, 64, 128)
 
     # Autograd version (original forward)
-    x_lat_a, x_tok_a, ms_a, mx_a = block(x_lat.clone(), x_tok.clone(), None, None)
+    x_lat_a, x_tok_a, ms_a, mx_a, mf_a = block(x_lat.clone(), x_tok.clone(), None, None)
 
     # Manual forward using analytical gradients
     x_lat_n = block.norm_lat(x_lat)

@@ -77,6 +77,9 @@ class CoEvolNO(nn.Module):
                  x_exact_update=True, x_loss_type='dot product',
                  x_momentum_beta=0.0, s_approximate=False,
                  s_loss_type='dot product',
+                 # PCFFN parameters
+                 use_pc_ffn=False, pc_ffn_loss_type='dot product',
+                 pc_ffn_momentum_beta=0.9, pc_ffn_analytical=True,
                  # Positional
                  unified_pos=False, ref=8,
                  # Other
@@ -113,6 +116,9 @@ class CoEvolNO(nn.Module):
                 x_exact_update=x_exact_update, x_loss_type=x_loss_type,
                 x_momentum_beta=x_momentum_beta, s_approximate=s_approximate,
                 s_loss_type=s_loss_type,
+                use_pc_ffn=use_pc_ffn, pc_ffn_loss_type=pc_ffn_loss_type,
+                pc_ffn_momentum_beta=pc_ffn_momentum_beta,
+                pc_ffn_analytical=pc_ffn_analytical,
             )
             for i in range(depth)
         ])
@@ -187,10 +193,12 @@ class CoEvolNO(nn.Module):
         # Initialize momenta
         momentum_s = None
         momentum_x = None
+        momentum_ffn = None
 
         # Co-Evolution through all blocks
         for block in self.blocks:
-            x_lat, x_tok, momentum_s, momentum_x = block(x_lat, x_tok, momentum_s, momentum_x)
+            x_lat, x_tok, momentum_s, momentum_x, momentum_ffn = block(
+                x_lat, x_tok, momentum_s, momentum_x, momentum_ffn)
 
         # Final normalization
         x_tok = self.norm(x_tok)
