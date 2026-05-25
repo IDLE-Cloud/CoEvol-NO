@@ -9,10 +9,22 @@ model:
   num_heads: 8
   mlp_ratio: 1.0
   drop_path_rate: 0.1
+  # PC attention
+  x_exact_update: false
+  s_approximate: false
+  s_loss_type: 'dot product'
+  s_momentum_beta: 0.9
+  x_loss_type: 'dot product'
+  x_momentum_beta: 0.0
+  # PCFFN
   use_pc_ffn: false
   pc_ffn_loss_type: 'dot product'
   pc_ffn_momentum_beta: 0.9
   pc_ffn_analytical: true
+  # Positional / misc
+  final_norm: true
+  unified_pos: false
+  ref: 8
 
 training:
   lr: 0.001

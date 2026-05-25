@@ -125,6 +125,7 @@ class DualExactBlock(nn.Module):
                  x_exact_update=True, x_loss_type='dot product',
                  x_momentum_beta=0.9,
                  s_approximate=False, s_loss_type='dot product',
+                 s_momentum_beta=0.9,
                  # PCFFN parameters
                  use_pc_ffn=False, pc_ffn_loss_type='dot product',
                  pc_ffn_momentum_beta=0.9, pc_ffn_analytical=True):
@@ -137,7 +138,8 @@ class DualExactBlock(nn.Module):
         self.cross_attn = DualExactStateAttention(
             dim_lat=dim_lat, dim_tok=dim_tok, num_heads=num_heads,
             qkv_bias=qkv_bias, drop_path=drop_path,
-            s_loss_type=s_loss_type, x_exact_update=x_exact_update,
+            s_loss_type=s_loss_type, s_momentum_beta=s_momentum_beta,
+            x_exact_update=x_exact_update,
             x_loss_type=x_loss_type, x_momentum_beta=x_momentum_beta,
             s_approximate=s_approximate,
         )

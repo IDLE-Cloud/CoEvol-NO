@@ -21,6 +21,7 @@ MODEL_REGISTRY = {
     'CoEvolNO': CoEvolNO,
     'CoEvolNOLatent': CoEvolNOLatent,
     'CoEvolNOSequence': CoEvolNOSequence,
+    'TransolverPC': None,  # lazy import
 }
 
 
@@ -28,9 +29,35 @@ def build_model(cfg, data_info):
     model_name = cfg.get('model', {}).get('name', 'CoEvolNO')
     variant = cfg.get('model', {}).get('variant', None)
     model_cfg = cfg.get('model', {})
+    res = data_info.get('resolution', 64)
 
+    # --- PC-Transolver baseline ---
+    if model_name == 'TransolverPC':
+        from baselines.pc_transolver import TransolverPC
+        from coevol_no.wrapper import OperatorNet as _OperatorNet
+
+        n_hidden = model_cfg.get('dim_tok', 128)
+        branch = TransolverPC(
+            space_dim=data_info.get('coord_dim', 2),
+            n_layers=model_cfg.get('depth', 8),
+            n_hidden=n_hidden,
+            n_head=model_cfg.get('num_heads', 8),
+            mlp_ratio=model_cfg.get('mlp_ratio', 1.0),
+            fun_dim=data_info.get('in_channels', 1),
+            out_dim=n_hidden,
+            slice_num=model_cfg.get('num_latents', 32),
+            H=res, W=res,
+            use_pc_attn=model_cfg.get('use_pc_attn', True),
+            use_pc_ffn=model_cfg.get('use_pc_ffn', False),
+            loss_type=model_cfg.get('s_loss_type', 'dot product'),
+            momentum_beta=model_cfg.get('s_momentum_beta', 0.9),
+            init_values=1e-5,
+        )
+        return _OperatorNet(branch, num_basis=n_hidden, resolution=res)
+
+    # --- CoEvol-NO family ---
     common_kwargs = {
-        'img_size': (data_info.get('resolution', 64), data_info.get('resolution', 64)),
+        'img_size': (res, res),
         'in_channels': data_info.get('in_channels', 1),
         'coord_dim': data_info.get('coord_dim', 2),
         'depth': model_cfg.get('depth', 8),
@@ -40,10 +67,22 @@ def build_model(cfg, data_info):
         'num_heads': model_cfg.get('num_heads', 8),
         'mlp_ratio': model_cfg.get('mlp_ratio', 1.0),
         'drop_path_rate': model_cfg.get('drop_path_rate', 0.1),
+        # PC attention
+        'x_exact_update': model_cfg.get('x_exact_update', False),
+        's_approximate': model_cfg.get('s_approximate', False),
+        's_loss_type': model_cfg.get('s_loss_type', 'dot product'),
+        's_momentum_beta': model_cfg.get('s_momentum_beta', 0.9),
+        'x_loss_type': model_cfg.get('x_loss_type', 'dot product'),
+        'x_momentum_beta': model_cfg.get('x_momentum_beta', 0.0),
+        # PCFFN
         'use_pc_ffn': model_cfg.get('use_pc_ffn', False),
         'pc_ffn_loss_type': model_cfg.get('pc_ffn_loss_type', 'dot product'),
         'pc_ffn_momentum_beta': model_cfg.get('pc_ffn_momentum_beta', 0.9),
         'pc_ffn_analytical': model_cfg.get('pc_ffn_analytical', True),
+        # Positional / misc
+        'final_norm': model_cfg.get('final_norm', True),
+        'unified_pos': model_cfg.get('unified_pos', False),
+        'ref': model_cfg.get('ref', 8),
     }
 
     if model_name == 'CoEvolNO' and variant:
@@ -51,10 +90,6 @@ def build_model(cfg, data_info):
         branch = CoEvolNOVariant.create(variant, **common_kwargs)
     else:
         ModelClass = MODEL_REGISTRY[model_name]
-        common_kwargs.pop('use_pc_ffn', None)
-        common_kwargs.pop('pc_ffn_loss_type', None)
-        common_kwargs.pop('pc_ffn_momentum_beta', None)
-        common_kwargs.pop('pc_ffn_analytical', None)
         branch = ModelClass(**common_kwargs)
 
     use_wrapper = model_cfg.get('use_wrapper', True)
@@ -62,7 +97,7 @@ def build_model(cfg, data_info):
         model = OperatorNet(
             branch=branch,
             num_basis=model_cfg.get('dim_tok', 128),
-            resolution=data_info.get('resolution', 64),
+            resolution=res,
         )
     else:
         model = branch

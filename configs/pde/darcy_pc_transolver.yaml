@@ -1,0 +1,27 @@
+model:
+  name: TransolverPC
+  depth: 5
+  dim_tok: 256
+  num_heads: 8
+  num_latents: 32       # slice_num
+  mlp_ratio: 1.0
+  # PC switches
+  use_pc_attn: true
+  use_pc_ffn: false
+  # PC parameters
+  s_loss_type: 'dot product'
+  s_momentum_beta: 0.9
+
+training:
+  lr: 0.001
+  epochs: 500
+  batch_size: 8
+  scheduler: OneCycleLR
+  weight_decay: 1e-5
+
+data:
+  task: darcy
+  ntrain: 1000
+  ntest: 200
+  downsample: 5
+  seed: 0
