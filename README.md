@@ -110,6 +110,49 @@ branch = CoEvolNO(in_channels=1, coord_dim=2, depth=8)
 model = OperatorNet(branch=branch, num_basis=128, resolution=64)
 ```
 
+## 解析梯度
+
+CoEvol-NO 提供解析（analytical）版本的 PC 梯度计算，通过显式推导注意力反向传播公式避免 `torch.autograd` 的图构建开销。
+
+```python
+from coevol_no.analytical import (
+    compute_s_gradient_analytical,
+    compute_x_gradient_analytical,
+    compute_ffn_gradient_analytical,
+)
+
+# 替代 attn._compute_s_gradient() 的解析版本
+grad_S, S_pred = compute_s_gradient_analytical(attn, x_lat, x_tok)
+
+# 替代 attn._compute_x_gradient() 的解析版本
+grad_X, X_pred = compute_x_gradient_analytical(attn, x_lat, x_tok, delta_S)
+```
+
+### 等价性验证
+
+解析版本与 autograd 版本在 float32 精度下完全等价（误差 < 1e-6）：
+
+```bash
+python test_analytical.py
+```
+
+### 速度基准
+
+在 CPU 上（B=2, M=64, N=1024, C=128）的测试结果：
+
+| 操作 | Autograd | 解析版本 | 加速比 |
+|------|----------|----------|--------|
+| S 梯度（精确） | 155ms | 51ms | **3.0x** |
+| X 梯度（精确） | 228ms | 89ms | **2.6x** |
+| X 梯度（一阶近似） | 12ms | 13ms | ~1.0x |
+| FFN 梯度 | 148ms | 158ms | ~1.0x |
+
+核心的精确 PC 梯度计算（S 和 X 的精确更新）获得约 **3 倍加速**，因为避免了 `autograd.grad(create_graph=True)` 的开销。一阶近似和 FFN 不使用 autograd 二次求导，因此无显著差异。
+
+```bash
+python benchmark_analytical.py
+```
+
 ## 项目结构
 
 ```
@@ -119,6 +162,7 @@ CoEvol-NO/
 │   ├── attention.py        # StateAttention, DualExactStateAttention（核心 PC 模块）
 │   ├── blocks.py           # DualExactBlock, StatefulBlock, LatentBlock, SequenceBlock
 │   ├── layers.py           # LayerScale, Newton-Schulz 正交化
+│   ├── analytical.py       # 解析梯度（S/X/FFN 的显式反向公式）
 │   └── wrapper.py          # OperatorNet（Branch 封装）
 ├── baselines/              # 基线模型
 │   ├── transolver/         # Transolver（2D 和非结构化网格版本）

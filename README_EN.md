@@ -110,15 +110,59 @@ branch = CoEvolNO(in_channels=1, coord_dim=2, depth=8)
 model = OperatorNet(branch=branch, num_basis=128, resolution=64)
 ```
 
+## Analytical Gradients
+
+CoEvol-NO provides analytical (closed-form) PC gradient computations that replace `torch.autograd` by explicitly deriving the attention backward pass, avoiding graph construction overhead.
+
+```python
+from coevol_no.analytical import (
+    compute_s_gradient_analytical,
+    compute_x_gradient_analytical,
+    compute_ffn_gradient_analytical,
+)
+
+# Drop-in replacement for attn._compute_s_gradient()
+grad_S, S_pred = compute_s_gradient_analytical(attn, x_lat, x_tok)
+
+# Drop-in replacement for attn._compute_x_gradient()
+grad_X, X_pred = compute_x_gradient_analytical(attn, x_lat, x_tok, delta_S)
+```
+
+### Equivalence Verification
+
+The analytical version is numerically equivalent to autograd at float32 precision (error < 1e-6):
+
+```bash
+python test_analytical.py
+```
+
+### Speed Benchmark
+
+CPU results (B=2, M=64, N=1024, C=128):
+
+| Operation | Autograd | Analytical | Speedup |
+|-----------|----------|------------|---------|
+| S gradient (exact) | 155ms | 51ms | **3.0x** |
+| X gradient (exact) | 228ms | 89ms | **2.6x** |
+| X gradient (first-order) | 12ms | 13ms | ~1.0x |
+| FFN gradient | 148ms | 158ms | ~1.0x |
+
+The core exact PC gradient computations (S and X exact updates) achieve ~**3x speedup** by avoiding `autograd.grad(create_graph=True)` overhead. First-order and FFN operations show no significant difference as they don't use second-order autograd.
+
+```bash
+python benchmark_analytical.py
+```
+
 ## Project Structure
 
 ```
 CoEvol-NO/
 ├── coevol_no/              # Core library
 │   ├── models.py           # CoEvolNO, CoEvolNOLatent, CoEvolNOSequence
-│   ├── attention.py        # StateAttention, DualExactStateAttention (core PC modules)
-│   ├── blocks.py           # DualExactBlock, StatefulBlock, LatentBlock, SequenceBlock
+│   ├── attention.py        # DualExactStateAttention (core PC module)
+│   ├── blocks.py           # DualExactBlock, LatentBlock, SequenceBlock
 │   ├── layers.py           # LayerScale, Newton-Schulz orthogonalization
+│   ├── analytical.py       # Analytical gradients (explicit backward for S/X/FFN)
 │   └── wrapper.py          # OperatorNet (Branch wrapper)
 ├── baselines/              # Baseline models
 │   ├── transolver/         # Transolver (2D and irregular mesh variants)
