@@ -10,6 +10,10 @@ model:
   drop_path_rate: 0.1
   final_norm: false
   use_wrapper: true
+  use_pc_ffn: false
+  pc_ffn_loss_type: 'dot product'
+  pc_ffn_momentum_beta: 0.9
+  pc_ffn_analytical: true
 
 training:
   lr: 0.001
