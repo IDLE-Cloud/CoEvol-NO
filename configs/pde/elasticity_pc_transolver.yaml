@@ -1,0 +1,24 @@
+model:
+  name: TransolverPC
+  depth: 5
+  dim_tok: 256
+  num_heads: 8
+  num_latents: 32
+  mlp_ratio: 1.0
+  use_pc_attn: true
+  use_pc_ffn: false
+  s_loss_type: 'dot product'
+  s_momentum_beta: 0.9
+
+training:
+  lr: 0.001
+  epochs: 500
+  batch_size: 8
+  scheduler: CosineAnnealingLR
+  weight_decay: 1e-5
+
+data:
+  task: elasticity
+  ntrain: 1000
+  ntest: 200
+  seed: 0
