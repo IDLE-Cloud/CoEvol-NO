@@ -154,8 +154,8 @@ x_out, momentum = pcffn(x, momentum)
 ### Equivalence Verification
 
 ```bash
-python test_analytical.py   # S/X gradient equivalence (17 tests, all pass)
-python test_pcffn.py        # PCFFN equivalence (all pass)
+python tests/test_analytical.py   # S/X gradient equivalence (17 tests, all pass)
+python tests/test_pcffn.py        # PCFFN equivalence (all pass)
 ```
 
 ### Speed Benchmark
@@ -170,7 +170,7 @@ CPU results (B=4, N=1024, C=128):
 | X gradient (first-order) | 12ms | 13ms | ~1.0x |
 
 ```bash
-python benchmark_analytical.py
+python tests/benchmark_analytical.py
 ```
 
 ## Project Structure
@@ -186,6 +186,7 @@ CoEvol-NO/
 │   └── wrapper.py          # OperatorNet (Branch wrapper)
 ├── baselines/              # Baseline models
 │   ├── transolver/         # Transolver (2D and irregular mesh variants)
+│   ├── pc_transolver/      # PC-Transolver (Transolver + PC mechanism)
 │   └── operators/          # PerceiverIO, ISAB, ClusterAttention, LNO
 ├── utils/                  # Utilities
 │   ├── loss.py             # TestLoss (relative Lp error)
@@ -206,6 +207,7 @@ Included baselines for comparison:
 | Baseline | Description |
 |----------|-------------|
 | **Transolver** | Physics-Attention slice attention (2D + irregular mesh variants) |
+| **PC-Transolver** | Transolver + PC mechanism (Attention/FFN PC independently switchable) |
 | **PerceiverIO** | Perceiver IO (with optional cross-attention) |
 | **ISAB** | Set Transformer (Induced Set Attention Block) |
 | **ClusterAttention** | LSH-clustered attention |

@@ -154,8 +154,8 @@ x_out, momentum = pcffn(x, momentum)
 ### 等价性验证
 
 ```bash
-python test_analytical.py   # S/X 梯度等价性（17 项全通过）
-python test_pcffn.py        # PCFFN 等价性（全部通过）
+python tests/test_analytical.py   # S/X 梯度等价性（17 项全通过）
+python tests/test_pcffn.py        # PCFFN 等价性（全部通过）
 ```
 
 ### 速度基准
@@ -170,7 +170,7 @@ CPU 测试结果（B=4, N=1024, C=128）：
 | X 梯度（一阶近似） | 12ms | 13ms | ~1.0x |
 
 ```bash
-python benchmark_analytical.py
+python tests/benchmark_analytical.py
 ```
 
 ## 项目结构
@@ -186,6 +186,7 @@ CoEvol-NO/
 │   └── wrapper.py          # OperatorNet（Branch 封装）
 ├── baselines/              # 基线模型
 │   ├── transolver/         # Transolver（2D 和非结构化网格版本）
+│   ├── pc_transolver/      # PC-Transolver（Transolver + PC 机制）
 │   └── operators/          # PerceiverIO, ISAB, ClusterAttention, LNO
 ├── utils/                  # 工具函数
 │   ├── loss.py             # TestLoss（相对 Lp 误差）
@@ -206,6 +207,7 @@ CoEvol-NO/
 | 基线 | 说明 |
 |------|------|
 | **Transolver** | Physics-Attention 切片注意力（2D + 非结构化网格） |
+| **PC-Transolver** | Transolver + PC 机制（Attention/FFN 可独立切换 PC 更新） |
 | **PerceiverIO** | 感知器 IO（可选交叉注意力） |
 | **ISAB** | 集合 Transformer（Induced Set Attention） |
 | **ClusterAttention** | LSH 聚类注意力 |
