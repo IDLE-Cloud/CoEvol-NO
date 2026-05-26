@@ -1,11 +1,11 @@
 #!/bin/bash
-# PDE benchmark: Navier-Stokes
-# Usage: bash scripts/run_ns.sh [DATA_PATH] [GPU_ID]
+# CoEvol-NO on Navier-Stokes
+# Usage: bash scripts/run_ns.sh /path/to/data [gpu]
 
-DATA_PATH=${1:-"data/AI4PDE/NavierStokes_V1e-5_N1200_T20.mat"}
+DATA_PATH=${1:?"Usage: bash scripts/run_ns.sh /path/to/data [gpu]"}
 GPU=${2:-0}
 
 python tasks/pde_benchmarks/run.py \
     --config configs/pde/ns.yaml \
-    --data_path $DATA_PATH \
-    --gpu $GPU
+    --data_path "$DATA_PATH" \
+    --gpu "$GPU"

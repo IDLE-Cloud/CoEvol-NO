@@ -1,11 +1,11 @@
 #!/bin/bash
-# PDE benchmark: Pipe Flow
-# Usage: bash scripts/run_pipe.sh [DATA_PATH] [GPU_ID]
+# CoEvol-NO on Pipe
+# Usage: bash scripts/run_pipe.sh /path/to/data [gpu]
 
-DATA_PATH=${1:-"data/AI4PDE/pipe"}
+DATA_PATH=${1:?"Usage: bash scripts/run_pipe.sh /path/to/data [gpu]"}
 GPU=${2:-0}
 
 python tasks/pde_benchmarks/run.py \
     --config configs/pde/pipe.yaml \
-    --data_path $DATA_PATH \
-    --gpu $GPU
+    --data_path "$DATA_PATH" \
+    --gpu "$GPU"

@@ -1,11 +1,11 @@
 #!/bin/bash
-# PDE benchmark: Elasticity
-# Usage: bash scripts/run_elasticity.sh [DATA_PATH] [GPU_ID]
+# CoEvol-NO on Elasticity
+# Usage: bash scripts/run_elasticity.sh /path/to/data [gpu]
 
-DATA_PATH=${1:-"data/AI4PDE"}
+DATA_PATH=${1:?"Usage: bash scripts/run_elasticity.sh /path/to/data [gpu]"}
 GPU=${2:-0}
 
 python tasks/pde_benchmarks/run.py \
     --config configs/pde/elasticity.yaml \
-    --data_path $DATA_PATH \
-    --gpu $GPU
+    --data_path "$DATA_PATH" \
+    --gpu "$GPU"
