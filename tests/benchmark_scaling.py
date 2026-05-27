@@ -315,7 +315,7 @@ def run_all(args):
     print(f"Device: {device}")
     if device.type == 'cuda':
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-        print(f"GPU memory: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB")
+        print(f"GPU memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     print(f"Config: B={B}, M={M}, C={C}, H={H}")
     print(f"Sequence lengths: {SEQ_LENGTHS}")
     print(f"Modes: inference, training")
@@ -325,8 +325,11 @@ def run_all(args):
     seq_lengths = [n for n in SEQ_LENGTHS if n <= args.max_N]
 
     results = []
-    header = ['op', 'N', 'mode', 't_auto_ms', 't_auto_std', 't_anal_ms', 't_anal_std',
-              'speedup', 'mem_auto_mb', 'mem_anal_mb', 'mem_ratio']
+    header = ['op', 'N', 'mode',
+              'time_autograd_ms', 'time_autograd_std',
+              'time_analytical_ms', 'time_analytical_std',
+              'speedup',
+              'mem_autograd_mb', 'mem_analytical_mb', 'mem_ratio']
 
     for bench_name, bench_fn in BENCHMARKS.items():
         for N in seq_lengths:
@@ -341,17 +344,17 @@ def run_all(args):
 
                     mem_a_str = f"{mem_a:.0f}" if mem_a else "n/a"
                     mem_b_str = f"{mem_b:.0f}" if mem_b else "n/a"
-                    print(f"auto={t_a:8.2f}ms  anal={t_b:8.2f}ms  "
+                    print(f"autograd={t_a:8.2f}ms  analytical={t_b:8.2f}ms  "
                           f"speedup={speedup:.2f}x  "
                           f"mem={mem_a_str}->{mem_b_str}MB")
 
                     results.append({
                         'op': bench_name, 'N': N, 'mode': mode,
-                        't_auto_ms': f"{t_a:.4f}", 't_auto_std': f"{t_a_s:.4f}",
-                        't_anal_ms': f"{t_b:.4f}", 't_anal_std': f"{t_b_s:.4f}",
+                        'time_autograd_ms': f"{t_a:.4f}", 'time_autograd_std': f"{t_a_s:.4f}",
+                        'time_analytical_ms': f"{t_b:.4f}", 'time_analytical_std': f"{t_b_s:.4f}",
                         'speedup': f"{speedup:.4f}",
-                        'mem_auto_mb': f"{mem_a:.1f}" if mem_a else '',
-                        'mem_anal_mb': f"{mem_b:.1f}" if mem_b else '',
+                        'mem_autograd_mb': f"{mem_a:.1f}" if mem_a else '',
+                        'mem_analytical_mb': f"{mem_b:.1f}" if mem_b else '',
                         'mem_ratio': f"{mem_ratio:.3f}" if mem_ratio else '',
                     })
                 except RuntimeError as e:
@@ -359,9 +362,10 @@ def run_all(args):
                         print("OOM - skipping")
                         results.append({
                             'op': bench_name, 'N': N, 'mode': mode,
-                            't_auto_ms': 'OOM', 't_auto_std': '', 't_anal_ms': 'OOM',
-                            't_anal_std': '', 'speedup': '', 'mem_auto_mb': 'OOM',
-                            'mem_anal_mb': '', 'mem_ratio': '',
+                            'time_autograd_ms': 'OOM', 'time_autograd_std': '',
+                            'time_analytical_ms': 'OOM', 'time_analytical_std': '',
+                            'speedup': '', 'mem_autograd_mb': 'OOM',
+                            'mem_analytical_mb': '', 'mem_ratio': '',
                         })
                         if device.type == 'cuda':
                             torch.cuda.empty_cache()
@@ -384,17 +388,17 @@ def run_all(args):
     print(f"SUMMARY (device={device})")
     print(f"{'='*100}")
     print(f"{'Op':>8s} {'N':>8s} {'Mode':>10s} | "
-          f"{'Auto(ms)':>10s} {'Anal(ms)':>10s} {'Speedup':>8s} | "
-          f"{'Mem_auto':>10s} {'Mem_anal':>10s} {'MemRatio':>8s}")
-    print('-' * 100)
+          f"{'Autograd(ms)':>12s} {'Analytical(ms)':>14s} {'Speedup':>8s} | "
+          f"{'Mem_autograd':>12s} {'Mem_analytical':>14s} {'MemRatio':>8s}")
+    print('-' * 110)
     for r in results:
-        if r['t_auto_ms'] == 'OOM':
-            print(f"{r['op']:>8s} {r['N']:>8d} {r['mode']:>10s} | {'OOM':>10s}")
+        if r['time_autograd_ms'] == 'OOM':
+            print(f"{r['op']:>8s} {r['N']:>8d} {r['mode']:>10s} | {'OOM':>12s}")
         else:
             print(f"{r['op']:>8s} {r['N']:>8d} {r['mode']:>10s} | "
-                  f"{float(r['t_auto_ms']):>10.2f} {float(r['t_anal_ms']):>10.2f} "
+                  f"{float(r['time_autograd_ms']):>12.2f} {float(r['time_analytical_ms']):>14.2f} "
                   f"{float(r['speedup']):>7.2f}x | "
-                  f"{r['mem_auto_mb']:>10s} {r['mem_anal_mb']:>10s} {r['mem_ratio']:>8s}")
+                  f"{r['mem_autograd_mb']:>12s} {r['mem_analytical_mb']:>14s} {r['mem_ratio']:>8s}")
 
     plot_results(out_path)
 
@@ -407,7 +411,7 @@ def plot_results(csv_path):
     rows = []
     with open(csv_path) as f:
         for r in csv.DictReader(f):
-            if r['t_auto_ms'] == 'OOM':
+            if r['time_autograd_ms'] == 'OOM':
                 continue
             rows.append(r)
     if not rows:
@@ -449,9 +453,9 @@ def plot_results(csv_path):
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
     for ax, mode in zip(axes, modes):
         for op in ops:
-            data_a = [(int(r['N']), float(r['t_auto_ms']))
+            data_a = [(int(r['N']), float(r['time_autograd_ms']))
                       for r in rows if r['op'] == op and r['mode'] == mode]
-            data_b = [(int(r['N']), float(r['t_anal_ms']))
+            data_b = [(int(r['N']), float(r['time_analytical_ms']))
                       for r in rows if r['op'] == op and r['mode'] == mode]
             data_a.sort(); data_b.sort()
             if not data_a:
@@ -476,14 +480,14 @@ def plot_results(csv_path):
     plt.close(fig)
 
     # ── Figure 3: Memory (GPU only) ──
-    mem_rows = [r for r in rows if r['mem_auto_mb'] and r['mem_anal_mb']]
+    mem_rows = [r for r in rows if r['mem_autograd_mb'] and r['mem_analytical_mb']]
     if mem_rows:
         fig, axes = plt.subplots(1, 2, figsize=(14, 5))
         for ax, mode in zip(axes, modes):
             for op in ops:
-                data_a = [(int(r['N']), float(r['mem_auto_mb']))
+                data_a = [(int(r['N']), float(r['mem_autograd_mb']))
                           for r in mem_rows if r['op'] == op and r['mode'] == mode]
-                data_b = [(int(r['N']), float(r['mem_anal_mb']))
+                data_b = [(int(r['N']), float(r['mem_analytical_mb']))
                           for r in mem_rows if r['op'] == op and r['mode'] == mode]
                 data_a.sort(); data_b.sort()
                 if not data_a:
