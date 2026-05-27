@@ -248,15 +248,19 @@ def bench_block(N, device, mode='inference'):
     xl = torch.randn(B, M, C, device=device)
     xt = torch.randn(B, N, C, device=device)
 
+    # autograd block (analytical=False for attention + PCFFN)
     block_auto = DualExactBlock(
         dim_lat=C, dim_tok=C, num_heads=H, mlp_ratio=1.0,
         drop_path=0., x_exact_update=False, s_approximate=False,
+        analytical=False,
         use_pc_ffn=True, pc_ffn_analytical=False,
     ).to(device)
 
+    # analytical block (analytical=True for attention + PCFFN)
     block_anal = DualExactBlock(
         dim_lat=C, dim_tok=C, num_heads=H, mlp_ratio=1.0,
         drop_path=0., x_exact_update=False, s_approximate=False,
+        analytical=True,
         use_pc_ffn=True, pc_ffn_analytical=True,
     ).to(device)
     block_anal.load_state_dict(block_auto.state_dict())
@@ -270,7 +274,6 @@ def bench_block(N, device, mode='inference'):
         def fn_auto():
             block_auto.zero_grad()
             out = block_auto(xl, xt, None, None, None)
-            # out is (x_lat, x_tok, ms, mx, mf)
             loss = out[0].sum() + out[1].sum()
             loss.backward()
 

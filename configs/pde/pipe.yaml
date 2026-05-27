@@ -13,6 +13,7 @@ model:
   s_approximate: false
   s_loss_type: 'dot product'
   s_momentum_beta: 0.9
+  analytical: true
   x_loss_type: 'dot product'
   x_momentum_beta: 0.0
   # PCFFN

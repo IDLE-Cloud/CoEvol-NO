@@ -23,6 +23,7 @@ import torch.nn.functional as F
 from timm.models.layers import DropPath
 
 from coevol_no.layers import LayerScale, zeropower_via_newtonschulz5
+from coevol_no.analytical import compute_s_gradient_analytical, compute_x_gradient_analytical
 
 
 # ===========================================================================
@@ -49,11 +50,14 @@ class DualExactStateAttention(nn.Module):
                  # X update parameters
                  x_loss_type='dot product', x_momentum_beta=0.0, x_eta_init=1e-5,
                  # Ablation switches
-                 x_exact_update=True, s_approximate=False):
+                 x_exact_update=True, s_approximate=False,
+                 # Analytical gradient switch
+                 analytical=True):
         super().__init__()
         self.num_heads = num_heads
         head_dim_lat = dim_lat // num_heads
         head_dim_tok = dim_tok // num_heads
+        self.analytical = analytical
 
         # ========== S update parameters ==========
         self.s_loss_type = s_loss_type
@@ -203,7 +207,10 @@ class DualExactStateAttention(nn.Module):
             momentum_x_in = torch.zeros_like(x_tok)
 
         # ========== Step 1: S exact gradient update ==========
-        grad_S, _ = self._compute_s_gradient(x_lat, x_tok)
+        if self.analytical:
+            grad_S, _ = compute_s_gradient_analytical(self, x_lat, x_tok)
+        else:
+            grad_S, _ = self._compute_s_gradient(x_lat, x_tok)
 
         # S momentum update
         momentum_s_out = self.s_momentum_beta * momentum_s_in + grad_S
@@ -213,7 +220,10 @@ class DualExactStateAttention(nn.Module):
         x_lat_final = x_lat - self.drop_path_s(self.eta_s * delta_S)
 
         # ========== Step 2: X gradient update ==========
-        grad_X, _ = self._compute_x_gradient(x_lat_final, x_tok, delta_S)
+        if self.analytical:
+            grad_X, _ = compute_x_gradient_analytical(self, x_lat_final, x_tok, delta_S)
+        else:
+            grad_X, _ = self._compute_x_gradient(x_lat_final, x_tok, delta_S)
 
         if self.x_exact_update:
             # X exact gradient: momentum update

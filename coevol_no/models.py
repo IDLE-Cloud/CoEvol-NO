@@ -77,6 +77,8 @@ class CoEvolNO(nn.Module):
                  x_exact_update=True, x_loss_type='dot product',
                  x_momentum_beta=0.0, s_approximate=False,
                  s_loss_type='dot product', s_momentum_beta=0.9,
+                 # Analytical gradient
+                 analytical=True,
                  # PCFFN parameters
                  use_pc_ffn=False, pc_ffn_loss_type='dot product',
                  pc_ffn_momentum_beta=0.9, pc_ffn_analytical=True,
@@ -116,6 +118,7 @@ class CoEvolNO(nn.Module):
                 x_exact_update=x_exact_update, x_loss_type=x_loss_type,
                 x_momentum_beta=x_momentum_beta, s_approximate=s_approximate,
                 s_loss_type=s_loss_type, s_momentum_beta=s_momentum_beta,
+                analytical=analytical,
                 use_pc_ffn=use_pc_ffn, pc_ffn_loss_type=pc_ffn_loss_type,
                 pc_ffn_momentum_beta=pc_ffn_momentum_beta,
                 pc_ffn_analytical=pc_ffn_analytical,

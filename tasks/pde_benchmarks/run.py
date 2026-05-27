@@ -72,6 +72,7 @@ def build_model(cfg, data_info):
         's_approximate': model_cfg.get('s_approximate', False),
         's_loss_type': model_cfg.get('s_loss_type', 'dot product'),
         's_momentum_beta': model_cfg.get('s_momentum_beta', 0.9),
+        'analytical': model_cfg.get('analytical', True),
         'x_loss_type': model_cfg.get('x_loss_type', 'dot product'),
         'x_momentum_beta': model_cfg.get('x_momentum_beta', 0.0),
         # PCFFN
