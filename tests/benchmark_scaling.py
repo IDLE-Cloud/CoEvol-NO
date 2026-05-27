@@ -393,10 +393,128 @@ def run_all(args):
                   f"{float(r['speedup']):>7.2f}x | "
                   f"{r['mem_auto_mb']:>10s} {r['mem_anal_mb']:>10s} {r['mem_ratio']:>8s}")
 
+    plot_results(out_path)
+
+
+def plot_results(csv_path):
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    rows = []
+    with open(csv_path) as f:
+        for r in csv.DictReader(f):
+            if r['t_auto_ms'] == 'OOM':
+                continue
+            rows.append(r)
+    if not rows:
+        print("No data to plot.")
+        return
+
+    ops = list(dict.fromkeys(r['op'] for r in rows))
+    modes = ['inference', 'training']
+    colors = {'S_grad': '#2563eb', 'X_grad': '#dc2626', 'PCFFN': '#16a34a', 'Block': '#9333ea'}
+    markers = {'inference': 'o', 'training': 's'}
+
+    # ── Figure 1: Speedup vs N (separate inference / training) ──
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    for ax, mode in zip(axes, modes):
+        for op in ops:
+            data = [(int(r['N']), float(r['speedup']))
+                    for r in rows if r['op'] == op and r['mode'] == mode]
+            data.sort()
+            if not data:
+                continue
+            ns, sps = zip(*data)
+            ax.plot(ns, sps, color=colors.get(op, 'gray'),
+                    marker=markers[mode], markersize=5, linewidth=1.5, label=op)
+        ax.axhline(1.0, color='gray', linestyle='--', linewidth=0.8, alpha=0.5)
+        ax.set_xscale('log', base=2)
+        ax.set_xlabel('Sequence Length (N)')
+        ax.set_ylabel('Speedup (auto / anal)')
+        ax.set_title(f'Speedup: Analytical vs Autograd ({mode})')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_ylim(bottom=0)
+    fig.tight_layout()
+    out1 = csv_path.replace('.csv', '_speedup.png')
+    fig.savefig(out1, dpi=150)
+    print(f"Saved: {out1}")
+    plt.close(fig)
+
+    # ── Figure 2: Raw time vs N (log-log) ──
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    for ax, mode in zip(axes, modes):
+        for op in ops:
+            data_a = [(int(r['N']), float(r['t_auto_ms']))
+                      for r in rows if r['op'] == op and r['mode'] == mode]
+            data_b = [(int(r['N']), float(r['t_anal_ms']))
+                      for r in rows if r['op'] == op and r['mode'] == mode]
+            data_a.sort(); data_b.sort()
+            if not data_a:
+                continue
+            ns_a, ta = zip(*data_a)
+            ns_b, tb = zip(*data_b)
+            ax.plot(ns_a, ta, color=colors.get(op, 'gray'), linestyle='-',
+                    linewidth=1.5, label=f'{op} (autograd)')
+            ax.plot(ns_b, tb, color=colors.get(op, 'gray'), linestyle='--',
+                    linewidth=1.5, label=f'{op} (analytical)')
+        ax.set_xscale('log', base=2)
+        ax.set_yscale('log')
+        ax.set_xlabel('Sequence Length (N)')
+        ax.set_ylabel('Time (ms)')
+        ax.set_title(f'Wall-clock Time ({mode})')
+        ax.legend(fontsize=7)
+        ax.grid(True, alpha=0.3)
+    fig.tight_layout()
+    out2 = csv_path.replace('.csv', '_time.png')
+    fig.savefig(out2, dpi=150)
+    print(f"Saved: {out2}")
+    plt.close(fig)
+
+    # ── Figure 3: Memory (GPU only) ──
+    mem_rows = [r for r in rows if r['mem_auto_mb'] and r['mem_anal_mb']]
+    if mem_rows:
+        fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+        for ax, mode in zip(axes, modes):
+            for op in ops:
+                data_a = [(int(r['N']), float(r['mem_auto_mb']))
+                          for r in mem_rows if r['op'] == op and r['mode'] == mode]
+                data_b = [(int(r['N']), float(r['mem_anal_mb']))
+                          for r in mem_rows if r['op'] == op and r['mode'] == mode]
+                data_a.sort(); data_b.sort()
+                if not data_a:
+                    continue
+                ns_a, ma = zip(*data_a)
+                ns_b, mb = zip(*data_b)
+                ax.plot(ns_a, ma, color=colors.get(op, 'gray'), linestyle='-',
+                        linewidth=1.5, label=f'{op} (autograd)')
+                ax.plot(ns_b, mb, color=colors.get(op, 'gray'), linestyle='--',
+                        linewidth=1.5, label=f'{op} (analytical)')
+            ax.set_xscale('log', base=2)
+            ax.set_xlabel('Sequence Length (N)')
+            ax.set_ylabel('Peak Memory (MB)')
+            ax.set_title(f'GPU Memory ({mode})')
+            ax.legend(fontsize=7)
+            ax.grid(True, alpha=0.3)
+        fig.tight_layout()
+        out3 = csv_path.replace('.csv', '_memory.png')
+        fig.savefig(out3, dpi=150)
+        print(f"Saved: {out3}")
+        plt.close(fig)
+    else:
+        print("(Memory plot skipped — no GPU data)")
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('Analytical vs Autograd Scaling Benchmark')
     parser.add_argument('--gpu', action='store_true', help='Use GPU')
     parser.add_argument('--max_N', type=int, default=1048576, help='Max sequence length')
+    parser.add_argument('--plot_only', type=str, default=None,
+                        help='Only generate plots from existing CSV (skip benchmark)')
     args = parser.parse_args()
-    run_all(args)
+
+    if args.plot_only:
+        plot_results(args.plot_only)
+    else:
+        run_all(args)
