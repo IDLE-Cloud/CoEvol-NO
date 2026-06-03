@@ -123,9 +123,9 @@ class DualExactBlock(nn.Module):
                  act_layer=nn.GELU,
                  # PC parameters
                  x_exact_update=True, x_loss_type='dot product',
-                 x_momentum_beta=0.9,
+                 x_momentum_beta=0.9, x_eta_init=1e-5,
                  s_approximate=False, s_loss_type='dot product',
-                 s_momentum_beta=0.9,
+                 s_momentum_beta=0.9, s_eta_init=1e-5,
                  # Analytical gradient
                  analytical=True,
                  # PCFFN parameters
@@ -141,8 +141,10 @@ class DualExactBlock(nn.Module):
             dim_lat=dim_lat, dim_tok=dim_tok, num_heads=num_heads,
             qkv_bias=qkv_bias, drop_path=drop_path,
             s_loss_type=s_loss_type, s_momentum_beta=s_momentum_beta,
+            s_eta_init=s_eta_init,
             x_exact_update=x_exact_update,
             x_loss_type=x_loss_type, x_momentum_beta=x_momentum_beta,
+            x_eta_init=x_eta_init,
             s_approximate=s_approximate, analytical=analytical,
         )
 

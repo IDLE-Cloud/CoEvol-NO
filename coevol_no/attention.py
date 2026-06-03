@@ -44,7 +44,7 @@ class DualExactStateAttention(nn.Module):
     """
 
     def __init__(self, dim_lat, dim_tok, num_heads=8, drop_path=0.,
-                 init_values=1e-5, qkv_bias=False,
+                 init_values=1e-5, qkv_bias=True,
                  # S update parameters
                  s_loss_type='dot product', s_momentum_beta=0.9, s_eta_init=1e-5,
                  # X update parameters

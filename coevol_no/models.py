@@ -73,10 +73,12 @@ class CoEvolNO(nn.Module):
                  # Core model parameters
                  depth=8, num_latents=128, dim_lat=128, dim_tok=128,
                  num_heads=8, mlp_ratio=1.0, drop_path_rate=0.1,
+                 qkv_bias=True,
                  # Predictor-Corrector parameters
                  x_exact_update=True, x_loss_type='dot product',
-                 x_momentum_beta=0.0, s_approximate=False,
-                 s_loss_type='dot product', s_momentum_beta=0.9,
+                 x_momentum_beta=0.0, x_eta_init=1e-5,
+                 s_approximate=False,
+                 s_loss_type='dot product', s_momentum_beta=0.9, s_eta_init=1e-5,
                  # Analytical gradient
                  analytical=True,
                  # PCFFN parameters
@@ -114,10 +116,12 @@ class CoEvolNO(nn.Module):
         self.blocks = nn.ModuleList([
             DualExactBlock(
                 dim_lat=dim_lat, dim_tok=dim_tok, num_heads=num_heads,
-                mlp_ratio=mlp_ratio, drop_path=dpr[i],
+                mlp_ratio=mlp_ratio, drop_path=dpr[i], qkv_bias=qkv_bias,
                 x_exact_update=x_exact_update, x_loss_type=x_loss_type,
-                x_momentum_beta=x_momentum_beta, s_approximate=s_approximate,
+                x_momentum_beta=x_momentum_beta, x_eta_init=x_eta_init,
+                s_approximate=s_approximate,
                 s_loss_type=s_loss_type, s_momentum_beta=s_momentum_beta,
+                s_eta_init=s_eta_init,
                 analytical=analytical,
                 use_pc_ffn=use_pc_ffn, pc_ffn_loss_type=pc_ffn_loss_type,
                 pc_ffn_momentum_beta=pc_ffn_momentum_beta,
