@@ -204,6 +204,7 @@ def train_pde(model, data_info, cfg):
     epochs = cfg.get('epochs', 500)
     lr = cfg.get('lr', 1e-3)
     weight_decay = cfg.get('weight_decay', 1e-5)
+    max_grad_norm = cfg.get('max_grad_norm', None)
     scheduler_type = cfg.get('scheduler', 'OneCycleLR')
     use_derivative_loss = data_info.get('use_derivative_loss', False)
 
@@ -293,6 +294,8 @@ def train_pde(model, data_info, cfg):
                 train_loss += loss.item()
                 optimizer.zero_grad()
                 loss.backward()
+                if max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
                 optimizer.step()
                 if scheduler_type == 'OneCycleLR':
                     scheduler.step()
@@ -336,6 +339,8 @@ def train_pde(model, data_info, cfg):
                     loss_val = l2loss
 
                 loss_val.backward()
+                if max_grad_norm is not None:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
                 optimizer.step()
                 if scheduler_type == 'OneCycleLR':
                     scheduler.step()
