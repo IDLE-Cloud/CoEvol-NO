@@ -67,14 +67,17 @@ def build_model(cfg, data_info):
         'num_heads': model_cfg.get('num_heads', 8),
         'mlp_ratio': model_cfg.get('mlp_ratio', 1.0),
         'drop_path_rate': model_cfg.get('drop_path_rate', 0.1),
+        'qkv_bias': model_cfg.get('qkv_bias', True),
         # PC attention
         'x_exact_update': model_cfg.get('x_exact_update', False),
         's_approximate': model_cfg.get('s_approximate', False),
         's_loss_type': model_cfg.get('s_loss_type', 'dot product'),
         's_momentum_beta': model_cfg.get('s_momentum_beta', 0.9),
+        's_eta_init': model_cfg.get('s_eta_init', 1e-5),
         'analytical': model_cfg.get('analytical', True),
         'x_loss_type': model_cfg.get('x_loss_type', 'dot product'),
         'x_momentum_beta': model_cfg.get('x_momentum_beta', 0.0),
+        'x_eta_init': model_cfg.get('x_eta_init', 1e-5),
         # PCFFN
         'use_pc_ffn': model_cfg.get('use_pc_ffn', False),
         'pc_ffn_loss_type': model_cfg.get('pc_ffn_loss_type', 'dot product'),
