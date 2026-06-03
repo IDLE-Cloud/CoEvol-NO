@@ -1,5 +1,7 @@
 # CoEvol-NO: Co-Evolution Neural Operator with Predictor-Corrector
 
+> **Note**: This repository was restructured with AI assistance; details are pending manual verification.
+
 English | **[中文](README.md)**
 
 Official implementation of **CoEvol-NO** (ICML 2026).
