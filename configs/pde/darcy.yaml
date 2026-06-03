@@ -8,14 +8,17 @@ model:
   num_heads: 8
   mlp_ratio: 1.0
   drop_path_rate: 0.1
+  qkv_bias: true
   # PC attention
   x_exact_update: false
   s_approximate: false
   s_loss_type: 'dot product'
   s_momentum_beta: 0.9
+  s_eta_init: 1.0e-5
   analytical: true
   x_loss_type: 'dot product'
   x_momentum_beta: 0.0
+  x_eta_init: 1.0e-5
   # PCFFN
   use_pc_ffn: false
   pc_ffn_loss_type: 'dot product'
@@ -32,7 +35,8 @@ training:
   epochs: 500
   batch_size: 8
   scheduler: OneCycleLR
-  weight_decay: 1e-5
+  weight_decay: 1.0e-5
+  max_grad_norm: null
 
 data:
   task: darcy
