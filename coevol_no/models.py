@@ -143,11 +143,11 @@ class CoEvolNO(nn.Module):
         to create a unified positional representation.
         """
         batchsize = pos.shape[0]
-        gridx = torch.tensor(np.linspace(-2, 4, self.ref), dtype=torch.float)
+        gridx = torch.tensor(np.linspace(-2, 4, self.ref), dtype=torch.float, device=pos.device)
         gridx = gridx.reshape(1, self.ref, 1, 1).repeat([batchsize, 1, self.ref, 1])
-        gridy = torch.tensor(np.linspace(-1.5, 1.5, self.ref), dtype=torch.float)
+        gridy = torch.tensor(np.linspace(-1.5, 1.5, self.ref), dtype=torch.float, device=pos.device)
         gridy = gridy.reshape(1, 1, self.ref, 1).repeat([batchsize, self.ref, 1, 1])
-        grid_ref = torch.cat((gridx, gridy), dim=-1).to(pos.device).reshape(batchsize, self.ref ** 2, 2)
+        grid_ref = torch.cat((gridx, gridy), dim=-1).reshape(batchsize, self.ref ** 2, 2)
         return torch.sqrt(
             torch.sum((pos[:, :, None, :] - grid_ref[:, None, :, :]) ** 2, dim=-1)
         ).reshape(batchsize, pos.shape[1], self.ref * self.ref).contiguous()
