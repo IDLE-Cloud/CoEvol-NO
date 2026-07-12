@@ -9,6 +9,7 @@ model:
   num_heads: 8
   mlp_ratio: 1.0
   drop_path_rate: 0.1
+  attn_drop_path: 0.
   qkv_bias: true
   # PC attention
   x_exact_update: false

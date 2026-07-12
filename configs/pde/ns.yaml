@@ -8,6 +8,7 @@ model:
   num_heads: 8
   mlp_ratio: 1.0
   drop_path_rate: 0.1
+  attn_drop_path: 0.
   qkv_bias: false
   # PC attention
   x_exact_update: false
@@ -33,10 +34,10 @@ model:
 training:
   lr: 0.001
   epochs: 500
-  batch_size: 8
+  batch_size: 4
   scheduler: OneCycleLR
   weight_decay: 1.0e-5
-  noise_std: 0.0
+  noise_std: 0.01
   max_grad_norm: null
 
 data:

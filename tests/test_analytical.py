@@ -231,12 +231,13 @@ def test_full_block_consistency():
     x_lat = torch.randn(2, 32, 128)
     x_tok = torch.randn(2, 64, 128)
 
-    # Autograd version (original forward)
+    # Autograd version (current forward)
     x_lat_a, x_tok_a, ms_a, mx_a, mf_a = block(x_lat.clone(), x_tok.clone(), None, None)
 
-    # Manual forward using analytical gradients
+    # Manual forward using analytical gradients, mirroring DualExactBlock.forward
+    x_tok_raw = x_tok
     x_lat_n = block.norm_lat(x_lat)
-    x_tok_n = block.norm_tok(x_tok)
+    x_tok_n = block.norm_tok(x_tok_raw)
     attn = block.cross_attn
 
     grad_S, _ = compute_s_gradient_analytical(attn, x_lat_n, x_tok_n)
@@ -246,8 +247,9 @@ def test_full_block_consistency():
 
     grad_X, _ = compute_x_gradient_analytical(attn, x_lat_final, x_tok_n, delta_S)
     mx = attn.x_momentum_beta * torch.zeros_like(x_tok_n) + attn.proj_tok(grad_X)
-    x_tok_final = x_tok_n + attn.drop_path_x(attn.eta_x * mx)
+    x_tok_norm_updated = x_tok_n + attn.drop_path_x(attn.eta_x * mx)
 
+    x_tok_final = x_tok_raw + (x_tok_norm_updated - x_tok_n)
     x_tok_final = x_tok_final + block.ls_tok2(block.mlp_tok(block.norm_tok2(x_tok_final)))
 
     check("Block S output", x_lat_a, x_lat_final)

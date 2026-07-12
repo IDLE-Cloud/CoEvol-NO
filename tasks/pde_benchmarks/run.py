@@ -67,6 +67,7 @@ def build_model(cfg, data_info):
         'num_heads': model_cfg.get('num_heads', 8),
         'mlp_ratio': model_cfg.get('mlp_ratio', 1.0),
         'drop_path_rate': model_cfg.get('drop_path_rate', 0.1),
+        'attn_drop_path': model_cfg.get('attn_drop_path', 0.),
         'qkv_bias': model_cfg.get('qkv_bias', True),
         # PC attention
         'x_exact_update': model_cfg.get('x_exact_update', False),
