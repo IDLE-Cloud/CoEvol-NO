@@ -41,11 +41,14 @@ def _get_grid(shape, device):
         device: torch device.
 
     Returns:
-        Coordinate grid of shape ``(B, H, W, 2)`` with (x, y) channels.
+        Coordinate grid of shape ``(B, H, W, 2)`` with (x, y) channels,
+        where x = column index / W and y = row index / H.  This matches
+        the original StateAttentionTitan.py convention used by
+        StateAttention_ns.py.
     """
     B, H, W, _ = shape
-    gridx = torch.tensor(np.linspace(0, 1, H), dtype=torch.float, device=device).reshape(1, H, 1, 1).repeat([B, 1, W, 1])
-    gridy = torch.tensor(np.linspace(0, 1, W), dtype=torch.float, device=device).reshape(1, 1, W, 1).repeat([B, H, 1, 1])
+    gridy = torch.tensor(np.linspace(0, 1, H), dtype=torch.float, device=device).reshape(1, H, 1, 1).repeat([B, 1, W, 1])
+    gridx = torch.tensor(np.linspace(0, 1, W), dtype=torch.float, device=device).reshape(1, 1, W, 1).repeat([B, H, 1, 1])
     return torch.cat((gridx, gridy), dim=-1)
 
 
@@ -73,7 +76,7 @@ class CoEvolNO(nn.Module):
                  # Core model parameters
                  depth=8, num_latents=128, dim_lat=128, dim_tok=128,
                  num_heads=8, mlp_ratio=1.0, drop_path_rate=0.1,
-                 attn_drop_path=0., qkv_bias=True,
+                 qkv_bias=True,
                  # Predictor-Corrector parameters
                  x_exact_update=True, x_loss_type='dot product',
                  x_momentum_beta=0.0, x_eta_init=1e-5,
@@ -116,8 +119,7 @@ class CoEvolNO(nn.Module):
         self.blocks = nn.ModuleList([
             DualExactBlock(
                 dim_lat=dim_lat, dim_tok=dim_tok, num_heads=num_heads,
-                mlp_ratio=mlp_ratio, drop_path=dpr[i],
-                attn_drop_path=attn_drop_path, qkv_bias=qkv_bias,
+                mlp_ratio=mlp_ratio, drop_path=dpr[i], qkv_bias=qkv_bias,
                 x_exact_update=x_exact_update, x_loss_type=x_loss_type,
                 x_momentum_beta=x_momentum_beta, x_eta_init=x_eta_init,
                 s_approximate=s_approximate,
@@ -174,13 +176,15 @@ class CoEvolNO(nn.Module):
                 u = u.permute(0, 2, 1).reshape(B, C, H, W)
 
             x = u.unsqueeze(-1) if u.dim() == 3 else u
-            u = x.reshape(x.shape[0], self.size, self.size, self.in_channels)
-            u = u.permute(0, 3, 1, 2)
-            B, C, H, W = u.shape
+            # x is (B, C, H, W).  We need (B, C, H, W) for shape info and
+            # (B, H, W, C) for grid concatenation below.  IMPORTANT: must use
+            # permute (not reshape) when converting between these layouts,
+            # because reshape scrambles spatial-channel ordering for C > 1.
+            B, C, H, W = x.shape
 
             # Prepend coordinate grid
-            grid = _get_grid((B, H, W, self.coord_dim), u.device)
-            u_permuted = u.permute(0, 2, 3, 1)
+            grid = _get_grid((B, H, W, self.coord_dim), x.device)
+            u_permuted = x.permute(0, 2, 3, 1)  # (B, C, H, W) -> (B, H, W, C)
             x_with_coords = torch.cat([u_permuted, grid], dim=-1)
             u_flat = x_with_coords.reshape(B, H * W, -1)
             x_tok = self.preprocess(u_flat)
@@ -285,12 +289,11 @@ class CoEvolNOLatent(nn.Module):
                 H = W = int(math.sqrt(P))
                 u = u.permute(0, 2, 1).reshape(B, C, H, W)
 
-            x = u.reshape(u.shape[0], self.img_size[0], self.img_size[1], self.in_channels)
-            u_perm = x.permute(0, 3, 1, 2)
-            B, C, H, W = u_perm.shape
+            # x is (B, C, H, W).  Use permute (not reshape) to get (B, H, W, C).
+            B, C, H, W = u.shape
 
             grid = _get_grid((B, H, W, self.coord_dim), u.device)
-            u_perm = u_perm.permute(0, 2, 3, 1)
+            u_perm = u.permute(0, 2, 3, 1)  # (B, C, H, W) -> (B, H, W, C)
             x_with_coords = torch.cat([u_perm, grid], dim=-1)
             x_tok = self.preprocess(x_with_coords.reshape(B, H * W, -1))
         else:
@@ -371,13 +374,11 @@ class CoEvolNOSequence(nn.Module):
                 H = W = int(math.sqrt(P))
                 u = u.permute(0, 2, 1).reshape(B, C, H, W)
 
-            x = u.unsqueeze(-1) if u.dim() == 3 else u
-            u = x.reshape(x.shape[0], self.size, self.size, self.in_channels)
-            u = u.permute(0, 3, 1, 2)
+            # x is (B, C, H, W).  Use permute (not reshape) to get (B, H, W, C).
             B, C, H, W = u.shape
 
             grid = _get_grid((B, H, W, self.coord_dim), u.device)
-            u_perm = u.permute(0, 2, 3, 1)
+            u_perm = u.permute(0, 2, 3, 1)  # (B, C, H, W) -> (B, H, W, C)
             x_with_coords = torch.cat([u_perm, grid], dim=-1)
             x_tok = self.preprocess(x_with_coords.reshape(B, H * W, -1))
         else:

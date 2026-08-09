@@ -13,6 +13,18 @@ from utils.normalizer import UnitTransformer, UnitGaussianNormalizer
 logger = logging.getLogger(__name__)
 
 
+def setup_file_logger(log_path):
+    """Add a file handler to the module logger if not already attached."""
+    os.makedirs(os.path.dirname(log_path), exist_ok=True)
+    for h in logger.handlers:
+        if isinstance(h, logging.FileHandler) and h.baseFilename == os.path.abspath(log_path):
+            return
+    fh = logging.FileHandler(log_path, mode='a')
+    fh.setFormatter(logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S'))
+    logger.addHandler(fh)
+    logger.setLevel(logging.INFO)
+
+
 def set_seed(seed=42):
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -265,13 +277,33 @@ def train_pde(model, data_info, cfg):
     save_dir = cfg.get('save_dir', './checkpoints')
     os.makedirs(save_dir, exist_ok=True)
     save_name = cfg.get('save_name', 'model')
+    setup_file_logger(os.path.join(save_dir, 'log.txt'))
 
-    for ep in range(epochs):
+    start_epoch = 0
+    resume_from = cfg.get('resume_from', None)
+    if resume_from and os.path.exists(resume_from):
+        logger.info(f"Resuming from checkpoint: {resume_from}")
+        checkpoint = torch.load(resume_from, map_location='cpu')
+        if isinstance(checkpoint, dict) and 'model' in checkpoint:
+            model.load_state_dict(checkpoint['model'])
+            if 'optimizer' in checkpoint:
+                optimizer.load_state_dict(checkpoint['optimizer'])
+            if 'scheduler' in checkpoint and checkpoint['scheduler'] is not None:
+                scheduler.load_state_dict(checkpoint['scheduler'])
+            start_epoch = checkpoint.get('epoch', 0) + 1
+        else:
+            # Legacy checkpoint: only model state_dict
+            model.load_state_dict(checkpoint)
+            start_epoch = 0
+        logger.info(f"Resumed training from epoch {start_epoch}")
+
+    for ep in range(start_epoch, epochs):
         model.train()
         train_loss = 0
 
         if task_type == 'ns':
             noise_std = cfg.get('noise_std', 0.0)
+            T_out = data_info['T_out']
             for x, fx, yy in train_loader:
                 loss = 0
                 x, fx, yy = x.to(device), fx.to(device), yy.to(device)
@@ -280,7 +312,6 @@ def train_pde(model, data_info, cfg):
                     scale_factor = fx[0].numel() ** 0.5
                     norm_x = torch.sum(fx ** 2, dim=(1, 2), keepdim=True) ** 0.5
                     fx = fx + noise_std * (norm_x / scale_factor) * torch.randn_like(fx)
-                T_out = data_info['T_out']
                 for t in range(0, T_out):
                     y = yy[..., t:t + 1]
                     im = model(fx, x)
@@ -291,7 +322,7 @@ def train_pde(model, data_info, cfg):
                     else:
                         pred = torch.cat((pred, im), -1)
                     fx = torch.cat((fx[..., 1:], y), dim=-1)
-                train_loss += loss.item()
+                train_loss += loss.item() / T_out
                 optimizer.zero_grad()
                 loss.backward()
                 if max_grad_norm is not None:
@@ -354,13 +385,14 @@ def train_pde(model, data_info, cfg):
         # Evaluation
         model.eval()
         rel_err = 0.0
+        test_full_loss = 0.0
         with torch.no_grad():
             if task_type == 'ns':
+                T_out = data_info['T_out']
                 for x, fx, yy in test_loader:
                     loss = 0
                     x, fx, yy = x.to(device), fx.to(device), yy.to(device)
                     bsz = x.shape[0]
-                    T_out = data_info['T_out']
                     for t in range(0, T_out):
                         y = yy[..., t:t + 1]
                         im = model(fx, x)
@@ -372,6 +404,7 @@ def train_pde(model, data_info, cfg):
                             pred = torch.cat((pred, im), -1)
                         fx = torch.cat((fx[..., 1:], im), dim=-1)
                     rel_err += loss.item()
+                    test_full_loss += myloss(pred.reshape(bsz, -1), yy.reshape(bsz, -1)).item()
             else:
                 for batch in test_loader:
                     if len(batch) == 3:
@@ -392,10 +425,20 @@ def train_pde(model, data_info, cfg):
                     tl = myloss(out, y).item()
                     rel_err += tl
 
-        rel_err /= ntest
-        logger.info(f"Epoch {ep} Train loss: {train_loss:.5f} rel_err: {rel_err:.5f}")
+        rel_err /= ntest * T_out if task_type == 'ns' else ntest
+        if task_type == 'ns':
+            test_full_loss /= ntest
+            logger.info(f"Epoch {ep} Train loss: {train_loss:.5f} test_step_loss: {rel_err:.5f} test_full_loss: {test_full_loss:.5f}")
+        else:
+            logger.info(f"Epoch {ep} Train loss: {train_loss:.5f} rel_err: {rel_err:.5f}")
 
         if ep % 100 == 0 or ep == epochs - 1:
-            torch.save(model.state_dict(), os.path.join(save_dir, f'{save_name}.pt'))
+            checkpoint = {
+                'epoch': ep,
+                'model': model.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'scheduler': scheduler.state_dict(),
+            }
+            torch.save(checkpoint, os.path.join(save_dir, f'{save_name}.pt'))
 
     return model

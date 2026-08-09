@@ -119,7 +119,7 @@ class DualExactBlock(nn.Module):
     """
 
     def __init__(self, dim_lat, dim_tok, num_heads=8, mlp_ratio=4.,
-                 drop_path=0., attn_drop_path=0., init_values=1e-5, qkv_bias=True,
+                 drop_path=0., init_values=1e-5, qkv_bias=True,
                  act_layer=nn.GELU,
                  # PC parameters
                  x_exact_update=True, x_loss_type='dot product',
@@ -136,13 +136,12 @@ class DualExactBlock(nn.Module):
         self.norm_lat = nn.LayerNorm(dim_lat)
         self.norm_tok = nn.LayerNorm(dim_tok)
 
-        # Core dual-exact PC attention.
-        # NOTE: attn_drop_path is intentionally kept at 0 by default; stochastic
-        # depth is only used on the FFN residual, matching the original
-        # StatefulBlock design (drop_path=0 in StateAttention).
+        # Core dual-exact PC attention
+        # Original StatefulBlock passes drop_path=0 into StateAttention and applies
+        # DropPath at the block level on the token residual.  Aligning this.
         self.cross_attn = DualExactStateAttention(
             dim_lat=dim_lat, dim_tok=dim_tok, num_heads=num_heads,
-            qkv_bias=qkv_bias, drop_path=attn_drop_path,
+            qkv_bias=qkv_bias, drop_path=0.,
             s_loss_type=s_loss_type, s_momentum_beta=s_momentum_beta,
             s_eta_init=s_eta_init,
             x_exact_update=x_exact_update,
@@ -150,6 +149,10 @@ class DualExactBlock(nn.Module):
             x_eta_init=x_eta_init,
             s_approximate=s_approximate, analytical=analytical,
         )
+        # LayerScale on the token cross-attention residual, matching the original
+        # StatefulBlock design (ls_tok1 around the attention delta).
+        self.ls_tok1 = LayerScale(dim_tok, init_values)
+        self.drop_path_tok1 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
         if use_pc_ffn:
             self.pc_ffn = PCFFN(
@@ -166,20 +169,15 @@ class DualExactBlock(nn.Module):
             self.drop_path_tok2 = DropPath(drop_path) if drop_path > 0. else nn.Identity()
 
     def forward(self, x_lat, x_tok, momentum_s, momentum_x, momentum_ffn=None):
-        # Dual-exact PC update on *normalized* inputs, but apply the X residual
-        # in the raw token space. This matches the original StatefulBlock, which
-        # computed the attention increment on LayerNorm(x_tok) and added it back
-        # to the raw x_tok. Doing the residual in normalized space replaces the
-        # token distribution with LayerNorm statistics at every layer and causes
-        # deep stacks to diverge from the original behaviour.
+        # Dual-exact PC update
+        # Keep the residual in the *raw* token space, matching the original
+        # StatefulBlock design: cross_attn receives normalized tokens and returns
+        # an updated normalized token; the delta is added back to the raw token.
         x_tok_raw = x_tok
-        x_lat_norm = self.norm_lat(x_lat)
         x_tok_norm = self.norm_tok(x_tok_raw)
-
         x_lat, x_tok_norm_updated, momentum_s, momentum_x = self.cross_attn(
-            x_lat_norm, x_tok_norm, momentum_s, momentum_x)
-
-        x_tok = x_tok_raw + (x_tok_norm_updated - x_tok_norm)
+            self.norm_lat(x_lat), x_tok_norm, momentum_s, momentum_x)
+        x_tok = x_tok_raw + self.drop_path_tok1(self.ls_tok1(x_tok_norm_updated - x_tok_norm))
 
         # FFN
         if self.use_pc_ffn:

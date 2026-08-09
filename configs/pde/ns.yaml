@@ -8,8 +8,7 @@ model:
   num_heads: 8
   mlp_ratio: 1.0
   drop_path_rate: 0.1
-  attn_drop_path: 0.
-  qkv_bias: false
+  qkv_bias: true
   # PC attention
   x_exact_update: false
   s_approximate: false
@@ -26,7 +25,7 @@ model:
   pc_ffn_momentum_beta: 0.9
   pc_ffn_analytical: true
   # Positional / misc
-  final_norm: false
+  final_norm: true
   unified_pos: false
   ref: 8
   use_wrapper: true
@@ -34,7 +33,7 @@ model:
 training:
   lr: 0.001
   epochs: 500
-  batch_size: 4
+  batch_size: 2
   scheduler: OneCycleLR
   weight_decay: 1.0e-5
   noise_std: 0.01

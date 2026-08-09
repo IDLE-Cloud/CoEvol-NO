@@ -68,6 +68,7 @@ class DualExactStateAttention(nn.Module):
         self.q_lat_proj = nn.Linear(dim_lat, dim_lat, bias=qkv_bias)
         self.k_tok_proj = nn.Linear(dim_tok, dim_lat, bias=qkv_bias)
         self.v_tok_proj = nn.Linear(dim_tok, dim_lat, bias=qkv_bias)
+        self.proj_lat = nn.Linear(dim_lat, dim_lat, bias=qkv_bias)  # unused in forward; matches original StateAttention RNG consumption during _init_weights
         self.scale_lat = head_dim_lat ** -0.5
 
         # S LayerScale and DropPath
@@ -231,9 +232,13 @@ class DualExactStateAttention(nn.Module):
             delta_X = momentum_x_out
             x_tok_final = x_tok - self.drop_path_x(self.eta_x * delta_X)
         else:
-            # X first-order: optional momentum accumulation
+            # X first-order: optional momentum accumulation.
+            # Do NOT apply eta_x here; the block-level LayerScale (ls_tok1) is
+            # the single scaling factor for the token residual, matching the
+            # original StatefulBlock design.  Applying eta_x * ls_tok1 would
+            # shrink the token update by ~1e-10 and cripple learning.
             momentum_x_out = self.x_momentum_beta * momentum_x_in + self.proj_tok(grad_X)
-            x_tok_final = x_tok + self.drop_path_x(self.eta_x * momentum_x_out)
+            x_tok_final = x_tok + self.drop_path_x(momentum_x_out)
 
         return x_lat_final, x_tok_final, momentum_s_out, momentum_x_out
 
